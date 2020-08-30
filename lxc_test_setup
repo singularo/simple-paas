@@ -22,7 +22,7 @@ REPOSITORY=git@github.com:singularo/simple-paas.git
 HOST=github.com
 
 # The registry holding images to deploy.
-REGISTRY=docker.pkg.github.com/my-org/my-repo/my-image
+REGISTRY=docker.pkg.github.com/singularo/shepherd-example-drupal
 
 # Email address to configure host settings with.
 EMAIL=bob@example.com
