@@ -1,0 +1,49 @@
+#!/bin/bash
+#
+# Part of Simple paas
+#
+# Update a project
+#
+
+set -euo pipefail
+
+if [[ $EUID -ne 0 ]]; then
+  echo "This script must be run as root"
+  exit 1
+fi
+
+# Load default configuration.
+CONFIG_DIR=/etc/simple-paas
+if [ ! -f ${CONFIG_DIR}/sp_config ]; then
+  echo "No default configuration in ${CONFIG_DIR}!"
+  exit 1
+else
+  source ${CONFIG_DIR}/sp_config
+fi
+
+if [[ $# -eq 0 ]] ; then
+  echo "Please enter the name of the project to update."
+  echo "Usage:"
+  echo "$0 project"
+  exit 1
+fi
+
+SITE=${1}
+CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}")
+
+if [[ "${CONTAINER}" != "${SITE}" ]]; then
+  echo "Container not found, cannot proceed."
+  exit 1
+fi
+
+# Ensure we are logged in to the registry.
+echo "Logging into the container registry."
+docker login ${CONTAINER_REGISTRY}
+
+# Setup the expected image name.
+DEPLOY_IMAGE="${CONTAINER_REGISTRY}/${SITE}"
+
+docker pull ${DEPLOY_IMAGE}
+docker stop ${CONTAINER}
+docker rm ${CONTAINER}
+sp_start ${CONTAINER}

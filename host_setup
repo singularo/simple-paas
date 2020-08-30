@@ -1,0 +1,97 @@
+#!/bin/bash
+#
+# Part of Simple paas
+#
+# Setup a new host ready to run Simple paas
+#
+
+set -euo pipefail
+
+usage() {
+  echo "This script will setup Simple paas on a single host."
+  echo "example usage:"
+  echo "EMAIL=bob@test.com REGISTRY=registry.mydomain.com/internal BUCKET=myhosting ./simple-paas/host_setup"
+  exit 1
+}
+
+if [[ $EUID -ne 0 ]]; then
+  echo "This script must be run as root"
+  exit 1
+fi
+
+set +u
+if [ -z "${EMAIL}" ]; then
+  echo "Please set the default email address before running this script."
+  echo "Something like this using your own email should work a treat."
+  echo "EMAIL=bob@test.com"
+  usage
+fi
+
+if [ -z "${REGISTRY}" ]; then
+  echo "Please set the registry address before running this script."
+  echo "REGISTRY=registry.mydomain.com/internal"
+  usage
+fi
+
+if [ -z "${BUCKET}" ]; then
+  echo "Please set the bucket name before running this script."
+  echo "BUCKET=myhosting"
+  usage
+fi
+set -u
+
+CHECKOUT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+echo "Installing software and verifying functionality."
+apt update
+apt -y install docker.io ssh mariadb-server mariadb-server-10.3 python3-pip memcached jq
+pip3 install b2
+docker run hello-world
+
+echo "Creating directories."
+mkdir -p /etc/simple-paas /sites
+
+echo "Tweaking docker."
+cp ${CHECKOUT_DIR}/setup/daemon.json /etc/docker/daemon.json
+systemctl daemon-reload
+systemctl restart docker
+
+echo "Installing simple-paas."
+for i in ${CHECKOUT_DIR}/bin/*; do
+  ln -s $i /usr/local/bin/;
+done
+
+echo "Setting mysql to bind to all addresses."
+cp ${CHECKOUT_DIR}/setup/90-simple-paas.cnf /etc/mysql/mariadb.conf.d/90-simple-paas.cnf
+systemctl daemon-reload
+systemctl restart mariadb
+
+echo "Creating simple paas directory."
+mkdir -p /etc/simple-paas
+
+echo "Copying proxy config to simple paas directory."
+cp ${CHECKOUT_DIR}/setup/proxy.conf /etc/simple-paas/
+
+echo "Creating basic host config."
+cp ${CHECKOUT_DIR}/setup/sp_config.example /etc/simple-paas/sp_config
+sed -i -e 's%SYSTEM_EMAIL=.*%SYSTEM_EMAIL='"${EMAIL}"'%' /etc/simple-paas/sp_config
+sed -i -e 's@CONTAINER_REGISTRY=.*@CONTAINER_REGISTRY='"${REGISTRY}"'@' /etc/simple-paas/sp_config
+sed -i -e 's@B2_BUCKET=.*@B2_BUCKET='"${BUCKET}"'@' /etc/simple-paas/sp_config
+
+echo "Logging into the specified container registry ${REGISTRY}"
+docker login ${REGISTRY}
+
+echo "Logging into B2"
+# Check if the host is authorized for B2, if not, set that up now.
+if ! b2 get-account-info > /dev/null; then
+  echo "Enter B2 authorization details for backup setup."
+  b2 authorize-account
+  if ! b2 list-buckets | grep ${BUCKET}; then
+    b2 create-bucket ${BUCKET} allPrivate
+  fi
+fi
+
+echo "Starting nginx proxy containers."
+${CHECKOUT_DIR}/host_start_nginx
+
+echo "Setup complete."

@@ -1,0 +1,48 @@
+#!/bin/bash
+#
+# Part of Simple paas
+#
+# Script to be used in local docker containers to retrieve backups for local testing.
+#
+
+set -euo pipefail
+
+if [ ! -f /.dockerenv ]; then
+  echo "This command should be run inside docker."
+  exit 1;
+fi
+
+if [ $# -eq 1 ]; then
+  COMMAND=${1}
+else
+  COMMAND="bash -l"
+fi
+
+#PROJECT=example
+REMOTE=${PROJECT}@myhosting.com
+
+echo "Retrieving B2 key"
+KEY=$(ssh ${REMOTE} "cat /sites/${PROJECT}/b2_key")
+export B2_ACCOUNT_ID=$(echo "${KEY}" | awk '{ print $1 }')
+export B2_ACCOUNT_KEY=$(echo "${KEY}" | awk '{ print $2 }')
+
+echo "Retrieving Restic password"
+export RESTIC_PASSWORD=$(ssh ${REMOTE} "cat /sites/${PROJECT}/restic_pass")
+export B2_BUCKET=$(ssh ${REMOTE} "cat /etc/simple-paas/sp_config | grep B2_BUCKET | cut -d'=' -f2")
+export RESTIC_REPOSITORY="b2:${B2_BUCKET}:${PROJECT}"
+export RESTIC_CACHE_DIR=/shared/restic
+
+echo "Usage before restore"
+du -msh /shared
+
+echo "Restoring shared files and sql as root."
+sudo -E restic restore --target / latest
+
+echo "Fixing permissions for local dev."
+sudo chown www-data:www-data -R /shared
+
+echo "Usage after restore"
+du -msh /shared
+
+echo "Importing sql"
+robo dev:import-db /shared/sql/${PROJECT}.sql

@@ -1,0 +1,79 @@
+#!/bin/bash
+#
+# Perform cron commands.
+#
+
+set -euo pipefail
+
+if [[ $EUID -ne 0 ]]; then
+  echo "This script must be run as root"
+  exit 1
+fi
+
+CONFIG_DIR=/etc/simple-paas
+if [ ! -f ${CONFIG_DIR}/sp_config ]; then
+  echo "No default configuration in ${CONFIG_DIR}!"
+  exit 1
+else
+  source ${CONFIG_DIR}/ss_config
+fi
+
+if [[ $# -eq 0 ]] ; then
+  echo "Please enter the project to backup, add optional command to run in the container"
+  echo "Usage:"
+  echo "$0 project command"
+  exit 1
+fi
+
+SITE=${1}
+CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}")
+
+if [[ "${CONTAINER}" != "${SITE}" ]]; then
+  echo "Container not found, cannot proceed."
+  exit 1
+fi
+
+if [ $# -ge 2 ]; then
+  COMMAND=${2}
+else
+  echo "Command not specified."
+  exit 1
+fi
+
+CONFIG_FILE=${CONFIG_DIR}/sites/${SITE}
+
+# Die if no config for the site, load it otherwise.
+if [ ! -f ${CONFIG_FILE} ]; then
+  echo "Config file doesn't exist!"
+  exit 1
+else
+  source ${CONFIG_FILE}
+fi
+
+# Setup data storage.
+SITE_DIR="${SITES_ROOT}/${SITE}"
+DATA_DIR="${SITE_DIR}/data"
+
+# Ensure we are logged in.
+docker login ${CONTAINER_REGISTRY}
+
+# Execute the script.
+docker run -it --rm \
+  -e BARE_DOMAIN=${BARE_DOMAIN} \
+  -e DATABASE_NAME=${DATABASE_NAME} \
+  -e DATABASE_USER=${DATABASE_USER} \
+  -e DATABASE_HOST=${DATABASE_HOST} \
+  -e DATABASE_PASSWORD_FILE=/etc/secrets/db_pass \
+  -e HASH_SALT=${HASH_SALT} \
+  -e LETSENCRYPT_HOST=${LIVE_DOMAIN} \
+  -e MEMCACHE_ENABLED=${MEMCACHE_ENABLED} \
+  -e MEMCACHE_HOST=${MEMCACHE_HOST} \
+  -e MEMCACHE_PORT=${MEMCACHE_PORT} \
+  -e MEMCACHE_PREFIX=${MEMCACHE_PREFIX} \
+  -e PRIVATE_DIR=${PRIVATE_DIR} \
+  -e VIRTUAL_HOST=${VIRTUAL_HOST} \
+  --name ${SITE}_cron \
+  --hostname ${SITE}_cron \
+  --volumes-from=${CONTAINER} \
+  ${CONTAINER_REGISTRY}/${CONTAINER} \
+  ${COMMAND}

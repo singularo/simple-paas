@@ -1,0 +1,186 @@
+#!/bin/bash
+#
+# Part of Simple paas
+#
+# Start a new project in a docker container.
+#
+
+set -euo pipefail
+
+if [[ $EUID -ne 0 ]]; then
+  echo "This script must be run as root"
+  exit 1
+fi
+
+# Load default configuration.
+CONFIG_DIR=/etc/simple-paas
+if [ ! -f ${CONFIG_DIR}/sp_config ]; then
+  echo "No default configuration in ${CONFIG_DIR}!"
+  exit 1
+else
+  source ${CONFIG_DIR}/sp_config
+fi
+
+if [[ $# -eq 0 ]]; then
+  echo "Please enter the name of the project to deploy."
+  echo "Usage:"
+  echo "$0 project"
+  exit 1
+fi
+
+SITE=${1}
+CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}")
+
+if [[ "${CONTAINER}" == "${SITE}" ]]; then
+  echo "Container already exists, cannot proceed."
+#  exit 1
+fi
+
+# Ensure we are logged in to the registry.
+echo "Logging into the container registry."
+docker login ${CONTAINER_REGISTRY}
+
+# Setup the expected image name.
+DEPLOY_IMAGE="${CONTAINER_REGISTRY}/${SITE}"
+
+# Check it exists.
+if [[ "$(docker images -q ${DEPLOY_IMAGE} 2> /dev/null | head -1)" == "" ]]; then
+  echo "Retrieving existing image ${DEPLOY_IMAGE}"
+  docker pull ${DEPLOY_IMAGE}
+  if [[ "$(docker images -q ${DEPLOY_IMAGE} 2> /dev/null)" == "" ]]; then
+    echo "Image doesn't exist, maybe build failed? Cannot proceed."
+    exit 1
+  fi
+fi
+
+# Now we can proceed.
+CONFIG_FILE=${CONFIG_DIR}/sites/${SITE}
+
+# If no config file present, create the config now using global defaults
+# and per site specific things as well.
+if [ ! -f ${CONFIG_FILE} ]; then
+  NEW_SITE=1
+  BARE_DOMAIN=1
+  DATABASE_NAME=${SITE}
+  DATABASE_USER=${SITE}
+  DATABASE_HOST=${DATABASE_HOST}
+
+  # Extract random values for db pass and hash salt.
+  set +e
+  DATABASE_PASS=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
+  HASH_SALT=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 60 | head -n 1)
+  set -e
+
+  MEMCACHE_ENABLED=${MEMCACHE_ENABLED}
+  MEMCACHE_HOST=${MEMCACHE_HOST}
+  MEMCACHE_PORT=${MEMCACHE_PORT}
+  MEMCACHE_PREFIX=${SITE}
+
+  PRIVATE_DIR=${PRIVATE_DIR}
+
+  # Ensure database doesn't already exist
+  if mysqlshow -uroot ${SITE} > /dev/null 2>&1; then
+    echo "Database already exists with ${SITE} name. Cannot proceed."
+    exit 1
+  fi
+
+  echo "Default domain will be ${SITE}, enter a different value if required."
+  read -p 'Alternate live domain - can be a comma separated list?: ' LIVE_DOMAIN
+  if [ -z ${LIVE_DOMAIN} ]; then
+    LIVE_DOMAIN=${SITE}
+  fi
+
+  # Provide access to the site via an alias as well as via the actual domain.
+  VIRTUAL_HOST=${SITE}.wsogmm.com,${LIVE_DOMAIN}
+else
+  NEW_SITE=0
+  source ${CONFIG_FILE}
+fi
+
+# Setup data storage.
+SITE_DIR="${SITES_ROOT}/${SITE}"
+DATA_DIR="${SITE_DIR}/data"
+
+# If this is a new site, create the database and storage config.
+if [ ${NEW_SITE} == 1 ]; then
+  # Make sure we can't overwrite existing files.
+  set -o noclobber
+  echo "Setting up directories, users and database."
+  mkdir -p ${CONFIG_DIR}/sites
+  mkdir -p ${DATA_DIR}/{public,private,sql,restic,tmp}
+  chown ${USER}:${USER} -R ${SITE_DIR}
+  echo -n ${DATABASE_PASS} > ${SITE_DIR}/db_pass
+  set +e
+  useradd -m ${SITE}
+  set -e
+  chmod 770 -R ${DATA_DIR}
+  chown www-data:${SITE} -R ${DATA_DIR}
+
+  # Setup mysql.
+  mysqladmin -uroot ${MYSQL_PASSWORD} create "${SITE}"
+  mysql -uroot ${MYSQL_PASSWORD} -e "GRANT ALL PRIVILEGES ON \`${SITE}\`.* TO \`${SITE}\`@\`%\` IDENTIFIED BY '${DATABASE_PASS}'"
+
+  # Create storage for this particular site.
+  sp_b2_setup ${SITE} ${SITE_DIR}
+
+  # Re-create vars here.
+  B2_REPOSITORY="${B2_BUCKET}"
+  B2_KEY_NAME="${SITE}-key"
+
+  set +o noclobber
+fi
+
+# If the config for this container is already stored, don't do it again.
+if [ ! -f ${CONFIG_FILE} ]; then
+  echo "Storing configuration."
+  cat <<EOF > ${CONFIG_FILE}
+#
+# Site config file created by simple-paas
+#
+BARE_DOMAIN=${BARE_DOMAIN}
+
+DATABASE_NAME=${DATABASE_NAME}
+DATABASE_USER=${DATABASE_USER}
+DATABASE_HOST=${DATABASE_HOST}
+DATABASE_PASS=${DATABASE_PASS}
+DATABASE_PASSWORD_FILE=/etc/secrets/db_pass
+
+HASH_SALT=${HASH_SALT}
+
+LIVE_DOMAIN=${LIVE_DOMAIN}
+
+MEMCACHE_ENABLED=${MEMCACHE_ENABLED}
+MEMCACHE_HOST=${MEMCACHE_HOST}
+MEMCACHE_PORT=${MEMCACHE_PORT}
+MEMCACHE_PREFIX=${MEMCACHE_PREFIX}
+
+PRIVATE_DIR=${PRIVATE_DIR}
+
+RESTIC_REPOSITORY=b2:${B2_REPOSITORY}
+B2_KEY=/etc/secrets/b2_key
+
+VIRTUAL_HOST=${VIRTUAL_HOST}
+EOF
+
+fi
+
+# Finally, attempt to run the container.
+docker run --restart=always --detach \
+  -e BARE_DOMAIN=${BARE_DOMAIN} \
+  -e DATABASE_NAME=${DATABASE_NAME} \
+  -e DATABASE_USER=${DATABASE_USER} \
+  -e DATABASE_HOST=${DATABASE_HOST} \
+  -e DATABASE_PASSWORD_FILE=/etc/secrets/db_pass \
+  -e HASH_SALT=${HASH_SALT} \
+  -e LETSENCRYPT_HOST=${LIVE_DOMAIN} \
+  -e MEMCACHE_ENABLED=${MEMCACHE_ENABLED} \
+  -e MEMCACHE_HOST=${MEMCACHE_HOST} \
+  -e MEMCACHE_PORT=${MEMCACHE_PORT} \
+  -e MEMCACHE_PREFIX=${MEMCACHE_PREFIX} \
+  -e PRIVATE_DIR=${PRIVATE_DIR} \
+  -e VIRTUAL_HOST=${VIRTUAL_HOST} \
+  --name ${SITE} \
+  --mount type=bind,source=${DATA_DIR},target=/shared \
+  --mount type=bind,source=${DATA_DIR}/public,target=/code/web/sites/default/files \
+  --mount type=bind,source=${SITE_DIR}/db_pass,target=/etc/secrets/db_pass \
+  ${DEPLOY_IMAGE}

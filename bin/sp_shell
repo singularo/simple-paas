@@ -1,0 +1,61 @@
+#!/bin/bash
+#
+# Part of Simple paas
+#
+# Create a shell container with all the sites code, files and database available.
+#
+
+set -euo pipefail
+
+if [[ $# -eq 0 ]] ; then
+  echo "Please enter the iproject to backup."
+  exit 0
+fi
+
+SITE=${1}
+CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}")
+CONFIG_DIR=/etc/simple-paas
+
+if [[ "${CONTAINER}" != "${SITE}" ]]; then
+  echo "Container not found, cannot proceed."
+  exit 0
+fi
+
+if [ ! -f ${CONFIG_DIR}/sp_config ]; then
+  echo "No default configuration in /etc/simple-paas!"
+  exit 1
+else
+  source ${CONFIG_DIR}/sp_config
+fi
+
+CONFIG_FILE=${CONFIG_DIR}/sites/${SITE}
+
+if [ ! -f ${CONFIG_FILE} ]; then
+  echo "Config file doesn't exist!"
+  exit 1
+else
+  source ${CONFIG_FILE}
+fi
+
+# Ensure we are logged in.
+docker login ${CONTAINER_REGISTRY}
+
+# Attempt to run the container.
+docker run -it --rm \
+  -e BARE_DOMAIN=${BARE_DOMAIN} \
+  -e DATABASE_NAME=${DATABASE_NAME} \
+  -e DATABASE_USER=${DATABASE_USER} \
+  -e DATABASE_HOST=${DATABASE_HOST} \
+  -e DATABASE_PASSWORD_FILE=/etc/secrets/db_pass \
+  -e HASH_SALT=${HASH_SALT} \
+  -e LETSENCRYPT_HOST=${LIVE_DOMAIN} \
+  -e MEMCACHE_ENABLED=${MEMCACHE_ENABLED} \
+  -e MEMCACHE_HOST=${MEMCACHE_HOST} \
+  -e MEMCACHE_PORT=${MEMCACHE_PORT} \
+  -e MEMCACHE_PREFIX=${MEMCACHE_PREFIX} \
+  -e PRIVATE_DIR=${PRIVATE_DIR} \
+  -e VIRTUAL_HOST=${VIRTUAL_HOST} \
+  --name ${CONTAINER}_shell \
+  --volumes-from=${CONTAINER} \
+  ${CONTAINER_REGISTRY}/${SITE} \
+  bash

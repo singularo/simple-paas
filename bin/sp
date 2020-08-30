@@ -1,0 +1,62 @@
+#!/bin/bash
+#
+# Part of Simple paas
+#
+# Setup a new host ready to run Simple paas
+#
+
+set -euo pipefail
+
+if [[ $EUID -ne 0 ]]; then
+  echo "This script must be run as root"
+  exit 1
+fi
+
+usage() {
+  echo "Run a simple-paas command."
+  exit 1
+}
+
+backup() {
+  shift
+  sp_backup $*
+}
+
+shell() {
+  shift
+  ss_shell $*
+}
+
+start() {
+  shift
+  ss_start $*
+}
+
+update() {
+  shift
+  ss_update $*
+}
+
+COMMAND=${1:-default}
+
+case ${COMMAND} in
+  ba*)
+    backup $*
+    ;;
+  h*|-h|--help)
+    usage
+    ;;
+  sh*)
+    shell $*
+    ;;
+  st*)
+    start $*
+    ;;
+  u*)
+    update $*
+    ;;
+  *)
+    usage
+esac
+
+

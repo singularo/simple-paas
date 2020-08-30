@@ -1,0 +1,120 @@
+#!/bin/bash
+#
+# Create a restic backup of files and an sql dump.
+#
+# Note that we run in the container image so that the version
+# of restic can be controlled at the container level and is
+# not subject to host OS updates.
+#
+
+set -euo pipefail
+
+if [[ $EUID -ne 0 ]]; then
+  echo "This script must be run as root"
+  exit 1
+fi
+
+CONFIG_DIR=/etc/simple-paas
+if [ ! -f ${CONFIG_DIR}/sp_config ]; then
+  echo "No default configuration in ${CONFIG_DIR}!"
+  exit 1
+else
+  source ${CONFIG_DIR}/sp_config
+fi
+
+if [[ $# -eq 0 ]] ; then
+  echo "Please enter the project to backup, add optional command to run in the container"
+  echo "Usage:"
+  echo "$0 project [bash]"
+  exit 1
+fi
+
+SITE=${1}
+CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}")
+
+if [[ "${CONTAINER}" != "${SITE}" ]]; then
+  echo "Container not found, cannot proceed."
+  exit 1
+fi
+
+if [ $# -eq 2 ]; then
+  COMMAND=${2}
+else
+  COMMAND="bash -c /code/backup"
+fi
+
+CONFIG_FILE=${CONFIG_DIR}/sites/${SITE}
+
+# Die if no config for the site, load it otherwise.
+if [ ! -f ${CONFIG_FILE} ]; then
+  echo "Config file doesn't exist!"
+  exit 1
+else
+  source ${CONFIG_FILE}
+fi
+
+# Setup data storage.
+SITE_DIR="${SITES_ROOT}/${SITE}"
+DATA_DIR="${SITE_DIR}/data"
+
+# Ensure we are logged in.
+docker login ${CONTAINER_REGISTRY}
+
+TEMP_DIR=$(mktemp -d)
+BACKUP_FILE=${TEMP_DIR}/backup
+
+# Create the backup script. Pull in the id/key in the script so
+# it not visible in the environment variables.
+cat <<EOF > ${BACKUP_FILE}
+#!/bin/bash
+#
+# Backup script for BACKBLAZE B2
+#
+
+# Retrieve the id/key from the file.
+export B2_ACCOUNT_ID=\$(cat /etc/secrets/b2_key | awk '{ print \$1 }')
+export B2_ACCOUNT_KEY=\$(cat /etc/secrets/b2_key | awk '{ print \$2 }')
+
+# Initialise the repository if needed.
+if [ ! -f /shared/restic/CACHEDIR.TAG ]; then
+  restic init
+fi
+
+# Dump the mysql database.
+vendor/bin/drush sql-dump --extra-dump="--skip-column-statistics" --result-file=/shared/sql/${SITE}.sql
+
+# Backup the files.
+restic backup /shared \
+  --exclude=/shared/tmp --exclude=/shared/restic --verbose=1
+EOF
+
+chmod +x ${BACKUP_FILE}
+sudo chown 33:33 -R ${TEMP_DIR}
+
+# Execute the script.
+docker run -it --rm \
+  -e BARE_DOMAIN=${BARE_DOMAIN} \
+  -e DATABASE_NAME=${DATABASE_NAME} \
+  -e DATABASE_USER=${DATABASE_USER} \
+  -e DATABASE_HOST=${DATABASE_HOST} \
+  -e DATABASE_PASSWORD_FILE=/etc/secrets/db_pass \
+  -e HASH_SALT=${HASH_SALT} \
+  -e LETSENCRYPT_HOST=${LIVE_DOMAIN} \
+  -e MEMCACHE_ENABLED=${MEMCACHE_ENABLED} \
+  -e MEMCACHE_HOST=${MEMCACHE_HOST} \
+  -e MEMCACHE_PORT=${MEMCACHE_PORT} \
+  -e MEMCACHE_PREFIX=${MEMCACHE_PREFIX} \
+  -e PRIVATE_DIR=${PRIVATE_DIR} \
+  -e VIRTUAL_HOST=${VIRTUAL_HOST} \
+  -e TEMP_DIR=${TEMP_DIR} \
+  -e RESTIC_REPOSITORY="${RESTIC_REPOSITORY}:${SITE}" \
+  -e RESTIC_PASSWORD_FILE=/etc/secrets/restic_pass \
+  -e RESTIC_CACHE_DIR=/shared/restic \
+  --name ${SITE}_restic \
+  --hostname ${SITE}_restic \
+  --volumes-from=${CONTAINER} \
+  --mount type=bind,source=${BACKUP_FILE},target=/code/backup \
+  --mount type=bind,source=${SITE_DIR}/restic_pass,target=/etc/secrets/restic_pass \
+  --mount type=bind,source=${SITE_DIR}/b2_key,target=/etc/secrets/b2_key \
+  ${CONTAINER_REGISTRY}/${CONTAINER} \
+  ${COMMAND}

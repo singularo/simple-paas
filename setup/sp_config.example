@@ -1,0 +1,37 @@
+#!/bin/false
+#
+# Part of Simple paas
+#
+# System wide configuration information.
+# To be sourced, not executed.
+#
+
+# Set simple-paas config dir.
+CONFIG_DIR=/etc/simple-paas
+
+# System email for notifications.
+SYSTEM_EMAIL=email@test.com
+
+# Container registry to pull from
+CONTAINER_REGISTRY=registry.mydomain.com/internal
+
+# Put the system wide mysql root password here.
+DATABASE_HOST=172.17.0.1
+MYSQL_PASSWORD=
+
+# Setup data storage where container config and directories are mapped.
+SITES_ROOT="/sites"
+
+# Setup memcache if you have it, will require support in the appllication.
+MEMCACHE_ENABLED=0
+MEMCACHE_HOST=172.17.0.1
+MEMCACHE_PORT=11211
+
+# Setup trusted host patterns as empty.
+TRUSTED_HOST_PATTERNS=
+
+# Set path to private directory.
+PRIVATE_DIR=/shared/private
+
+# BACKBLAZE B2 bucket.
+B2_BUCKET=server-name

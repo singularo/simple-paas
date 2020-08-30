@@ -1,0 +1,50 @@
+#!/bin/bash
+#
+# Part of Simple paas
+#
+# Setup B2 buckets for a site.
+#
+
+set -euo pipefail
+
+if [[ $# -eq 0 ]]; then
+  echo "Please enter the site to setup restic for and the path to store keys in."
+  echo "Usage:"
+  echo "$0 site path"
+  exit 1
+fi
+
+# Load default configuration..
+CONFIG_DIR=/etc/simple-paas
+if [ ! -f ${CONFIG_DIR}/sp_config ]; then
+  echo "No default configuration in ${CONFIG_DIR}!"
+  exit 1
+else
+  source ${CONFIG_DIR}/sp_config
+fi
+
+SITE=$1
+SITE_DIR=$2
+
+# Check if the host is authorized for B2, if not, set that up now.
+if ! b2 get-account-info > /dev/null; then
+  echo "Enter B2 authorization details for backup setup."
+  b2 authorize-account
+fi
+
+set +e
+RESTIC_PASS=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 16 | head -n 1)
+set -e
+
+B2_REPOSITORY="${B2_BUCKET}"
+B2_KEY_NAME="${B2_BUCKET}-${SITE}-key"
+
+# Make sure we can't overwrite existing files.
+set -o noclobber
+echo "Setting up B2 bucket for restic."
+b2 create-key --bucket ${B2_REPOSITORY} ${B2_KEY_NAME} \
+  listBuckets,listFiles,readFiles,shareFiles,writeFiles,deleteFiles > ${SITE_DIR}/b2_key
+echo -n ${RESTIC_PASS} > ${SITE_DIR}/restic_pass
+
+# Allow overwriting existing files.
+set +o noclobber

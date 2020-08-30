@@ -1,0 +1,63 @@
+#!/bin/bash
+#
+# Part of Simple paas
+#
+# Delete a site.
+
+# Will not remove backups, that needs to be done manually.
+#
+
+set -euo pipefail
+
+if [[ $# -eq 0 ]]; then
+  echo "Please enter the site to destroy."
+  echo "Usage:"
+  echo "$0 site"
+  exit 1
+fi
+
+CONFIG_DIR=/etc/simple-paas
+if [ ! -f ${CONFIG_DIR}/sp_config ]; then
+  echo "No default configuration in ${CONFIG_DIR}!"
+  exit 1
+else
+  source ${CONFIG_DIR}/sp_config
+fi
+
+SITE=${1}
+CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}")
+
+if [[ "${CONTAINER}" != "${SITE}" ]]; then
+  echo "No container found, continuing"
+fi
+
+echo "This will destroy the docker container for ${SITE} and it will be offline."
+read -p "Type ${SITE} to confirm removal: " CONFIRMATION
+if [ -z ${CONFIRMATION} ]; then
+  echo "Aborted."
+  exit 1
+fi
+
+if [[ "${CONFIRMATION}" != "${SITE}" ]]; then
+  echo "Aborted."
+  exit 1
+fi
+
+# Looks like its going down, perform a final backup here?
+sp_backup ${SITE}
+
+echo "Stopping and removing docker container."
+docker stop ${CONTAINER}
+docker rm ${CONTAINER}
+
+echo "Removing database."
+mysqladmin -f -uroot ${MYSQL_PASSWORD} DROP "${SITE}"
+mysql -uroot ${MYSQL_PASSWORD} -e "DROP USER \`${SITE}\`@\`%\`"
+
+echo "Site configuration left intact with backup details."
+# Don't remove the configs for the site or its no longer
+# recoverable when the B2 key is removed.
+#rm -rf ${SITES_ROOT}/${SITE}
+#rm ${CONFIG_DIR}/sites/${SITE}
+
+echo "${SITE} destroyed as requested."

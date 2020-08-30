@@ -1,0 +1,92 @@
+#!/bin/bash
+#
+# Part of Simple paas
+#
+# Setup a local lxd host for testing.
+#
+
+set -euo pipefail
+
+# Constants, update for your own use.
+
+# The hostname to use for the LXC machine.
+TEST_HOST_NAME=ubuntu
+
+# The ip address to setup for the LXC machine.
+IP_ADDRESS=10.50.1.2
+
+# The repository to clone simple-paas from.
+REPOSITORY=git@github.com:singularo/simple-paas.git
+
+# The host that has the repository for keyscan.
+HOST=github.com
+
+# The registry holding images to deploy.
+REGISTRY=docker.pkg.github.com/my-org/my-repo/my-image
+
+# Email address to configure host settings with.
+EMAIL=bob@example.com
+
+# B2 Bucket to create/test with.
+BUCKET=localtest
+
+# Get the current host ip to remove the ssh id.
+set +e
+LXC_IP=$(lxc info ${TEST_HOST_NAME} | grep "eth0:\\Winet" | grep -v inet6 | awk '{ print $3 }')
+set -e
+
+# Found existing host, cleanup.
+if [ ! -z ${LXC_IP} ]; then
+  echo "Destroying ${TEST_HOST_NAME} machine."
+  lxc stop ${TEST_HOST_NAME}
+  lxc delete ${TEST_HOST_NAME}
+
+  echo "Removing ssh-key for old host."
+  set +e
+  ssh-keygen -f ~/.ssh/known_hosts -R ${LXC_IP}
+  set -e
+fi
+
+echo "Launching a new ubuntu machine."
+lxc launch ubuntu:20.04 ${TEST_HOST_NAME}
+
+# Need to delay a bit to allow the machine to boot.
+echo "Waiting"
+sleep 10
+
+echo "Setting static IP"
+lxc config device add ${TEST_HOST_NAME} eth0 nic name=eth0 nictype=bridged parent=lxdbr0
+lxc config device set ${TEST_HOST_NAME} eth0 ipv4.address ${IP_ADDRESS}
+
+echo "Restarting to apply IP"
+lxc restart ${TEST_HOST_NAME}
+
+echo "Waiting"
+sleep 10
+
+echo "Installing updates & openssh server."
+lxc exec ${TEST_HOST_NAME} -- apt update
+lxc exec ${TEST_HOST_NAME} -- apt -y dist-upgrade
+lxc exec ${TEST_HOST_NAME} -- apt -y install ssh
+
+echo "Copy public key to make cloning etc easier."
+lxc file push ~/.ssh/id_rsa.pub ubuntu/root/.ssh/authorized_keys
+lxc exec ${TEST_HOST_NAME} -- chmod 0600 .ssh/authorized_keys
+lxc exec ${TEST_HOST_NAME} -- chown root:root .ssh/authorized_keys
+
+echo "Getting IP address."
+LXC_IP=$(lxc info ${TEST_HOST_NAME} | grep "eth0:\\Winet" | grep -v inet6 | awk '{ print $3 }')
+
+echo "clone repo and finish the setup."
+ssh -o StrictHostKeyChecking=no root@${LXC_IP} "ssh-keyscan ${HOST} > ~/.ssh/known_hosts"
+ssh root@${LXC_IP} "git clone ${REPOSITORY}"
+
+echo "While testing, sync the repo to the host."
+rsync -avzP . root@${LXC_IP}:simple-paas/
+
+echo "Now execute the host setup script."
+ssh root@${LXC_IP} -t -t "EMAIL=${EMAIL} REGISTRY=${REGISTRY} BUCKET=${BUCKET} simple-paas/host_setup"
+
+# Let the user know we're done.
+echo "ssh root@${LXC_IP} is ready for testing."
+eval "ssh root@${LXC_IP}"
