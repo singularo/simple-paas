@@ -28,13 +28,15 @@ if [[ $# -eq 0 ]]; then
   exit 1
 fi
 
-SITE=${1}
-CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}")
+SITE=$(basename ${1})
 
-if [[ "${CONTAINER}" == "${SITE}" ]]; then
-  echo "Container already exists, cannot proceed."
-#  exit 1
+# If a full site path was passed in, we need to extract the registry.
+if [[ "${SITE}" != "${1}" ]]; then
+  CONTAINER_REGISTRY=${1/${SITE}/}
+  CONTAINER_REGISTRY=${CONTAINER_REGISTRY%"/"}
 fi
+
+CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}")
 
 # Ensure we are logged in to the registry.
 echo "Logging into the container registry."
@@ -144,6 +146,8 @@ DATABASE_USER=${DATABASE_USER}
 DATABASE_HOST=${DATABASE_HOST}
 DATABASE_PASS=${DATABASE_PASS}
 DATABASE_PASSWORD_FILE=/etc/secrets/db_pass
+
+CONTAINER_REGISTRY=${CONTAINER_REGISTRY}
 
 HASH_SALT=${HASH_SALT}
 

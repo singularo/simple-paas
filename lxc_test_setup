@@ -38,8 +38,10 @@ set -e
 # Found existing host, cleanup.
 if [ ! -z ${LXC_IP} ]; then
   echo "Destroying ${TEST_HOST_NAME} machine."
+  set +e
   lxc stop ${TEST_HOST_NAME}
   lxc delete ${TEST_HOST_NAME}
+  set -e
 
   echo "Removing ssh-key for old host."
   set +e

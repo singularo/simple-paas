@@ -24,7 +24,8 @@ else
   source ${CONFIG_DIR}/sp_config
 fi
 
-SITE=${1}
+SITE=$(basename ${1})
+
 CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}")
 
 if [[ "${CONTAINER}" != "${SITE}" ]]; then

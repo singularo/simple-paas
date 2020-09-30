@@ -28,12 +28,23 @@ if [[ $# -eq 0 ]] ; then
   exit 1
 fi
 
-SITE=${1}
+SITE=$(basename ${1})
+
 CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}")
 
 if [[ "${CONTAINER}" != "${SITE}" ]]; then
   echo "Container not found, cannot proceed."
   exit 1
+fi
+
+CONFIG_FILE=${CONFIG_DIR}/sites/${SITE}
+
+# Die if no config for the site, load it otherwise.
+if [ ! -f ${CONFIG_FILE} ]; then
+  echo "Config file doesn't exist!"
+  exit 1
+else
+  source ${CONFIG_FILE}
 fi
 
 # Ensure we are logged in to the registry.
@@ -46,4 +57,4 @@ DEPLOY_IMAGE="${CONTAINER_REGISTRY}/${SITE}"
 docker pull ${DEPLOY_IMAGE}
 docker stop ${CONTAINER}
 docker rm ${CONTAINER}
-sp_start ${CONTAINER}
+sp_start ${DEPLOY_IMAGE}
