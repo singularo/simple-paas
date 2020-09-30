@@ -12,15 +12,8 @@ if [[ $# -eq 0 ]] ; then
   exit 0
 fi
 
-SITE=${1}
-CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}")
+# Load default configuration.
 CONFIG_DIR=/etc/simple-paas
-
-if [[ "${CONTAINER}" != "${SITE}" ]]; then
-  echo "Container not found, cannot proceed."
-  exit 0
-fi
-
 if [ ! -f ${CONFIG_DIR}/sp_config ]; then
   echo "No default configuration in /etc/simple-paas!"
   exit 1
@@ -28,8 +21,25 @@ else
   source ${CONFIG_DIR}/sp_config
 fi
 
+if [[ $# -eq 0 ]] ; then
+  echo "Please enter the name of the project to shell into."
+  echo "Usage:"
+  echo "$0 project"
+  exit 1
+fi
+
+SITE=$(basename ${1})
+
+CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}")
+
+if [[ "${CONTAINER}" != "${SITE}" ]]; then
+  echo "Container not found, cannot proceed."
+  exit 0
+fi
+
 CONFIG_FILE=${CONFIG_DIR}/sites/${SITE}
 
+# Die if no config for the site, load it otherwise.
 if [ ! -f ${CONFIG_FILE} ]; then
   echo "Config file doesn't exist!"
   exit 1
@@ -37,8 +47,12 @@ else
   source ${CONFIG_FILE}
 fi
 
-# Ensure we are logged in.
+# Ensure we are logged in to the registry.
+echo "Logging into the container registry."
 docker login ${CONTAINER_REGISTRY}
+
+# Setup the expected image name.
+DEPLOY_IMAGE="${CONTAINER_REGISTRY}/${SITE}"
 
 # Attempt to run the container.
 docker run -it --rm \
@@ -57,5 +71,5 @@ docker run -it --rm \
   -e VIRTUAL_HOST=${VIRTUAL_HOST} \
   --name ${CONTAINER}_shell \
   --volumes-from=${CONTAINER} \
-  ${CONTAINER_REGISTRY}/${SITE} \
+  ${DEPLOY_IMAGE} \
   bash
