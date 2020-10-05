@@ -94,6 +94,8 @@ if [ ! -f ${CONFIG_FILE} ]; then
 
   # Provide access to the site via an alias as well as via the actual domain.
   VIRTUAL_HOST=${SITE}.wsogmm.com,${LIVE_DOMAIN}
+
+  SHEPHERD_REVERSE_PROXY=1
 else
   NEW_SITE=0
   source ${CONFIG_FILE}
@@ -163,6 +165,8 @@ PRIVATE_DIR=${PRIVATE_DIR}
 RESTIC_REPOSITORY=b2:${B2_REPOSITORY}
 B2_KEY=/etc/secrets/b2_key
 
+SHEPHERD_REVERSE_PROXY=${SHEPHERD_REVERSE_PROXY}
+
 VIRTUAL_HOST=${VIRTUAL_HOST}
 EOF
 
@@ -182,6 +186,7 @@ docker run --restart=always --detach \
   -e MEMCACHE_PORT=${MEMCACHE_PORT} \
   -e MEMCACHE_PREFIX=${MEMCACHE_PREFIX} \
   -e PRIVATE_DIR=${PRIVATE_DIR} \
+  -e SHEPHERD_REVERSE_PROXY=${SHEPHERD_REVERSE_PROXY} \
   -e VIRTUAL_HOST=${VIRTUAL_HOST} \
   --name ${SITE} \
   --mount type=bind,source=${DATA_DIR},target=/shared \
