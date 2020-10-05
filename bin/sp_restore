@@ -13,30 +13,52 @@ if [ ! -f /.dockerenv ]; then
 fi
 
 if [ $# -eq 1 ]; then
-  COMMAND=${1}
-else
-  COMMAND="bash -l"
+  SNAPSHOT=${1}
 fi
 
 #PROJECT=example
 REMOTE=${PROJECT}@myhosting.com
 
-echo "Retrieving B2 key"
-KEY=$(ssh ${REMOTE} "cat /sites/${PROJECT}/b2_key")
+mkdir -p .secrets
+if [ ! -f .secrets/b2_key ]; then
+  echo "Retrieving B2 key."
+  ssh ${REMOTE} "cat /sites/${PROJECT}/b2_key" > .secrets/b2_key
+fi
+KEY=$(cat .secrets/b2_key)
 export B2_ACCOUNT_ID=$(echo "${KEY}" | awk '{ print $1 }')
 export B2_ACCOUNT_KEY=$(echo "${KEY}" | awk '{ print $2 }')
 
-echo "Retrieving Restic password"
-export RESTIC_PASSWORD=$(ssh ${REMOTE} "cat /sites/${PROJECT}/restic_pass")
-export B2_BUCKET=$(ssh ${REMOTE} "cat /etc/simple-paas/sp_config | grep B2_BUCKET | cut -d'=' -f2")
+if [ ! -f .secrets/restic_pass ]; then
+  echo "Retrieving Restic password."
+  ssh ${REMOTE} "cat /sites/${PROJECT}/restic_pass" > .secrets/restic_pass
+fi
+export RESTIC_PASSWORD=$(cat .secrets/restic_pass)
+
+if [ ! -f .secrets/b2_bucket ]; then
+  echo "Retrieving b2 bucket."
+  ssh ${REMOTE} "cat /etc/simple-paas/sp_config | grep B2_BUCKET | cut -d'=' -f2" > .secrets/b2_bucket
+fi
+export B2_BUCKET=$(cat .secrets/b2_bucket)
+
 export RESTIC_REPOSITORY="b2:${B2_BUCKET}:${PROJECT}"
 export RESTIC_CACHE_DIR=/shared/restic
 
 echo "Usage before restore"
 du -msh /shared
 
-echo "Restoring shared files and sql as root."
-sudo -E restic restore --target / latest
+set +u
+if [ -z ${SNAPSHOT} ]; then
+  set -u
+  echo "Restoring shared files and sql as root."
+  sudo -E restic snapshots
+
+  echo "Enter a specific snapshot, or edit the default and confirm with enter?"
+  read -i latest -e -p 'Snapshot to restore?: ' SNAPSHOT
+fi
+set -u
+
+echo "Restoring snapshot ${SNAPSHOT}."
+sudo -E restic restore --target / ${SNAPSHOT}
 
 echo "Fixing permissions for local dev."
 sudo chown www-data:www-data -R /shared
