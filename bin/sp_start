@@ -96,6 +96,9 @@ if [ ! -f ${CONFIG_FILE} ]; then
   VIRTUAL_HOST=${SITE}.wsogmm.com,${LIVE_DOMAIN}
 
   SHEPHERD_REVERSE_PROXY=1
+
+  # Determine the reverse proxy address
+  SHEPHERD_REVERSE_PROXY_ADDRESSES=$(docker inspect nginx-proxy | jq -r '.[].NetworkSettings.IPAddress')
 else
   NEW_SITE=0
   source ${CONFIG_FILE}
@@ -166,6 +169,7 @@ RESTIC_REPOSITORY=b2:${B2_REPOSITORY}
 B2_KEY=/etc/secrets/b2_key
 
 SHEPHERD_REVERSE_PROXY=${SHEPHERD_REVERSE_PROXY}
+SHEPHERD_REVERSE_PROXY_ADDRESSES=${SHEPHERD_REVERSE_PROXY_ADDRESSES}
 
 VIRTUAL_HOST=${VIRTUAL_HOST}
 EOF
@@ -187,6 +191,7 @@ docker run --restart=always --detach \
   -e MEMCACHE_PREFIX=${MEMCACHE_PREFIX} \
   -e PRIVATE_DIR=${PRIVATE_DIR} \
   -e SHEPHERD_REVERSE_PROXY=${SHEPHERD_REVERSE_PROXY} \
+  -e SHEPHERD_REVERSE_PROXY_ADDRESSES=${SHEPHERD_REVERSE_PROXY_ADDRESSES} \
   -e VIRTUAL_HOST=${VIRTUAL_HOST} \
   --name ${SITE} \
   --mount type=bind,source=${DATA_DIR},target=/shared \
