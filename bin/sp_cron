@@ -15,7 +15,7 @@ if [ ! -f ${CONFIG_DIR}/sp_config ]; then
   echo "No default configuration in ${CONFIG_DIR}!"
   exit 1
 else
-  source ${CONFIG_DIR}/ss_config
+  source ${CONFIG_DIR}/sp_config
 fi
 
 if [[ $# -eq 0 ]] ; then
