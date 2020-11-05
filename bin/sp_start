@@ -78,6 +78,10 @@ if [ ! -f ${CONFIG_FILE} ]; then
   MEMCACHE_PORT=${MEMCACHE_PORT}
   MEMCACHE_PREFIX=${SITE}
 
+  NEWRELIC_ENABLED=false
+  NEWRELIC_LICENSE=""
+  NEWRELIC_APP=""
+
   PRIVATE_DIR=${PRIVATE_DIR}
 
   # Ensure database doesn't already exist
