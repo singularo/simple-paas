@@ -63,8 +63,13 @@ sudo -E restic restore --target / ${SNAPSHOT}
 echo "Fixing permissions for local dev."
 sudo chown www-data:www-data -R /shared
 
-echo "Usage after restore"
+echo "Usage after restore."
 du -msh /shared
 
-echo "Importing sql"
+echo "Importing sql."
 robo dev:import-db /shared/sql/${PROJECT}.sql
+
+echo "Importing users separately."
+if [ -f /shared/sql/${PROJECT}_users.sql ];then
+  drush sqlq --file=/shared/sql/${PROJECT}_users.sql
+fi

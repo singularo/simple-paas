@@ -84,6 +84,9 @@ fi
 # Dump the mysql database.
 vendor/bin/drush sql-dump --result-file=/shared/sql/${SITE}.sql
 
+# User info is done separately as it changes a lot.
+vendor/bin/drush sql-dump --tables-list=users,users_data,users_field_data --result-file=/shared/sql/${SITE}_users.sql
+
 # Backup the files.
 restic backup /shared \
   --exclude=/shared/tmp --exclude=/shared/restic --verbose=1
