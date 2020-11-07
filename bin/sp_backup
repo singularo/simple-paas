@@ -31,11 +31,9 @@ fi
 
 SITE=$(basename ${1})
 INTERACTIVE=""
-set +u
-if [ -z "$PS1" ]; then
+if [ -t 1 ]; then
   INTERACTIVE="-it"
 fi
-set -u
 
 CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}")
 
