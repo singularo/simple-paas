@@ -30,6 +30,12 @@ if [[ $# -eq 0 ]] ; then
 fi
 
 SITE=$(basename ${1})
+INTERACTIVE=""
+set +u
+if [ -z "$PS1" ]; then
+  INTERACTIVE="-it"
+fi
+set -u
 
 CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}")
 
@@ -93,7 +99,7 @@ chmod +x ${BACKUP_FILE}
 sudo chown 33:33 -R ${TEMP_DIR}
 
 # Execute the script.
-docker run -it --rm \
+docker run ${INTERACTIVE} --rm \
   -e BARE_DOMAIN=${BARE_DOMAIN} \
   -e DATABASE_NAME=${DATABASE_NAME} \
   -e DATABASE_USER=${DATABASE_USER} \

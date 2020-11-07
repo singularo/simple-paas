@@ -35,7 +35,7 @@ fi
 export RESTIC_PASSWORD=$(cat .secrets/restic_pass)
 
 if [ ! -f .secrets/b2_bucket ]; then
-  echo "Retrieving b2 bucket."
+  echo "Retrieving B2 bucket."
   ssh ${REMOTE} "cat /etc/simple-paas/sp_config | grep B2_BUCKET | cut -d'=' -f2" > .secrets/b2_bucket
 fi
 export B2_BUCKET=$(cat .secrets/b2_bucket)
