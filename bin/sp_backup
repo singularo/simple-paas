@@ -45,7 +45,7 @@ fi
 if [ $# -eq 2 ]; then
   COMMAND=${2}
 else
-  COMMAND="bash -c /code/backup"
+  COMMAND="bash -c /code/sp_backup"
 fi
 
 CONFIG_FILE=${CONFIG_DIR}/sites/${SITE}
@@ -63,7 +63,7 @@ SITE_DIR="${SITES_ROOT}/${SITE}"
 DATA_DIR="${SITE_DIR}/data"
 
 TEMP_DIR=$(mktemp -d)
-BACKUP_FILE=${TEMP_DIR}/backup
+BACKUP_FILE=${TEMP_DIR}/sp_backup
 
 # Create the backup script. Pull in the id/key in the script so
 # it not visible in the environment variables.
@@ -79,17 +79,18 @@ export B2_ACCOUNT_KEY=\$(cat /etc/secrets/b2_key | awk '{ print \$2 }')
 
 # Initialise the repository if needed.
 if [ ! -f /shared/restic/CACHEDIR.TAG ]; then
-  restic init
+  restic init || echo "# ERROR - Restic init failed"
 fi
 
 # Dump the mysql database.
-vendor/bin/drush sql-dump --result-file=/shared/sql/${SITE}.sql
+echo "# Dumping database"
+vendor/bin/drush sql-dump --result-file=/shared/sql/${SITE}.sql || echo "# ERROR - Drush sql dump failed"
 
 # Backup the files.
+echo "# Backing up all data"
 restic backup /shared \
   --exclude=/shared/tmp \
-  --exclude=/shared/restic \
-  --verbose=1 
+  --exclude=/shared/restic || echo "# ERROR - Restic backup failed"
 EOF
 
 chmod +x ${BACKUP_FILE}
@@ -117,7 +118,7 @@ docker run ${INTERACTIVE} --rm \
   --name ${SITE}_backup \
   --hostname ${SITE}_backup \
   --volumes-from=${CONTAINER} \
-  --mount type=bind,source=${BACKUP_FILE},target=/code/backup \
+  --mount type=bind,source=${BACKUP_FILE},target=/code/sp_backup \
   --mount type=bind,source=${SITE_DIR}/restic_pass,target=/etc/secrets/restic_pass \
   --mount type=bind,source=${SITE_DIR}/b2_key,target=/etc/secrets/b2_key \
   --log-driver=syslog \

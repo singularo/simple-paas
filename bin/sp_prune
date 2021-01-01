@@ -45,7 +45,7 @@ fi
 if [ $# -eq 2 ]; then
   COMMAND=${2}
 else
-  COMMAND="bash -c /code/sp_prune_snapshots"
+  COMMAND="bash -c /code/sp_prune"
 fi
 
 CONFIG_FILE=${CONFIG_DIR}/sites/${SITE}
@@ -63,7 +63,7 @@ SITE_DIR="${SITES_ROOT}/${SITE}"
 DATA_DIR="${SITE_DIR}/data"
 
 TEMP_DIR=$(mktemp -d)
-PRUNE_FILE=${TEMP_DIR}/sp_prune_snapshots
+PRUNE_FILE=${TEMP_DIR}/sp_prune
 
 # Create the backup script. Pull in the id/key in the script so
 # it not visible in the environment variables.
@@ -79,21 +79,28 @@ export B2_ACCOUNT_KEY=\$(cat /etc/secrets/b2_key | awk '{ print \$2 }')
 
 # Exit if the repository is empty.
 if [ ! -f /shared/restic/CACHEDIR.TAG ]; then
+  echo "# ERROR - Repository not initialised"
   exit
 fi
 
 # Process the forget/prune based on the settings.
+echo "# Running forget"
 restic forget \
+  --compact \
   --keep-last ${RESTIC_LAST} \
   --keep-hourly ${RESTIC_HOURLY} \
   --keep-daily ${RESTIC_DAILY} \
   --keep-weekly ${RESTIC_WEEKLY} \
   --keep-monthly ${RESTIC_MONTHLY} \
   --keep-yearly ${RESTIC_YEARLY} \
-  --keep-tag manual
+  --keep-tag manual \
+  --quiet || echo "# ERROR - restic forget failed"
 
-restic prune
-restic check
+echo "# Running prune"
+restic prune --quiet || echo "# ERROR - restic prune failed"
+
+echo "# Running check"
+restic check --quiet || echo "# ERROR - restic check failed"
 
 EOF
 
@@ -122,7 +129,7 @@ docker run ${INTERACTIVE} --rm \
   --name ${SITE}_prune \
   --hostname ${SITE}_prune \
   --volumes-from=${CONTAINER} \
-  --mount type=bind,source=${PRUNE_FILE},target=/code/sp_prune_snapshots \
+  --mount type=bind,source=${PRUNE_FILE},target=/code/sp_prune \
   --mount type=bind,source=${SITE_DIR}/restic_pass,target=/etc/secrets/restic_pass \
   --mount type=bind,source=${SITE_DIR}/b2_key,target=/etc/secrets/b2_key \
   --log-driver=syslog \

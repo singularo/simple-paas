@@ -1,6 +1,6 @@
 #!/bin/bash
 
-for i in $(docker ps --format "{{ .Names }}" | grep -v 'nginx-proxy')
+for i in $(sp_list)
 do
   sp_prune $i
 done
