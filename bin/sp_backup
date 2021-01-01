@@ -83,7 +83,7 @@ if [ ! -f /shared/restic/CACHEDIR.TAG ]; then
 fi
 
 # Dump the mysql database.
-vendor/bin/drush sql-dump --result-file=/shared/sql/${SITE}.sql >> ${LOG_FILE}
+vendor/bin/drush sql-dump --result-file=/shared/sql/${SITE}.sql
 
 # Backup the files.
 restic backup /shared \
