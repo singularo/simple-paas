@@ -54,9 +54,6 @@ fi
 SITE_DIR="${SITES_ROOT}/${SITE}"
 DATA_DIR="${SITE_DIR}/data"
 
-# Ensure we are logged in.
-docker login ${CONTAINER_REGISTRY}
-
 # Execute the script.
 docker run -it --rm \
   -e BARE_DOMAIN=${BARE_DOMAIN} \

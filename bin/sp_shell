@@ -47,10 +47,6 @@ else
   source ${CONFIG_FILE}
 fi
 
-# Ensure we are logged in to the registry.
-echo "Logging into the container registry."
-docker login ${CONTAINER_REGISTRY}
-
 # Setup the expected image name.
 DEPLOY_IMAGE="${CONTAINER_REGISTRY}/${SITE}"
 

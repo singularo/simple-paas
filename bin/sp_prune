@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Create a restic backup of files and an sql dump.
+# Prune the snapshots for a site, based on their own settings.
 #
 # Note that we run in the container image so that the version
 # of restic can be controlled at the container level and is
@@ -45,7 +45,7 @@ fi
 if [ $# -eq 2 ]; then
   COMMAND=${2}
 else
-  COMMAND="bash -c /code/backup"
+  COMMAND="bash -c /code/sp_prune_snapshots"
 fi
 
 CONFIG_FILE=${CONFIG_DIR}/sites/${SITE}
@@ -63,36 +63,41 @@ SITE_DIR="${SITES_ROOT}/${SITE}"
 DATA_DIR="${SITE_DIR}/data"
 
 TEMP_DIR=$(mktemp -d)
-BACKUP_FILE=${TEMP_DIR}/backup
+PRUNE_FILE=${TEMP_DIR}/sp_prune_snapshots
 
 # Create the backup script. Pull in the id/key in the script so
 # it not visible in the environment variables.
-cat <<EOF > ${BACKUP_FILE}
+cat <<EOF > ${PRUNE_FILE}
 #!/bin/bash
 #
-# Backup script for Restic/BACKBLAZE B2
+# Prune script for Restic/BACKBLAZE B2
 #
 
 # Retrieve the id/key from the file.
 export B2_ACCOUNT_ID=\$(cat /etc/secrets/b2_key | awk '{ print \$1 }')
 export B2_ACCOUNT_KEY=\$(cat /etc/secrets/b2_key | awk '{ print \$2 }')
 
-# Initialise the repository if needed.
+# Exit if the repository is empty.
 if [ ! -f /shared/restic/CACHEDIR.TAG ]; then
-  restic init
+  exit
 fi
 
-# Dump the mysql database.
-vendor/bin/drush sql-dump --result-file=/shared/sql/${SITE}.sql >> ${LOG_FILE}
+# Process the forget/prune based on the settings.
+restic forget \
+  --keep-last ${RESTIC_LAST} \
+  --keep-hourly ${RESTIC_HOURLY} \
+  --keep-daily ${RESTIC_DAILY} \
+  --keep-weekly ${RESTIC_WEEKLY} \
+  --keep-monthly ${RESTIC_MONTHLY} \
+  --keep-yearly ${RESTIC_YEARLY} \
+  --keep-tag manual
 
-# Backup the files.
-restic backup /shared \
-  --exclude=/shared/tmp \
-  --exclude=/shared/restic \
-  --verbose=1 
+restic prune
+restic check
+
 EOF
 
-chmod +x ${BACKUP_FILE}
+chmod +x ${PRUNE_FILE}
 sudo chown 33:33 -R ${TEMP_DIR}
 
 # Execute the script.
@@ -114,17 +119,19 @@ docker run ${INTERACTIVE} --rm \
   -e RESTIC_REPOSITORY="${RESTIC_REPOSITORY}:${SITE}" \
   -e RESTIC_PASSWORD_FILE=/etc/secrets/restic_pass \
   -e RESTIC_CACHE_DIR=/shared/restic \
-  --name ${SITE}_backup \
-  --hostname ${SITE}_backup \
+  --name ${SITE}_prune \
+  --hostname ${SITE}_prune \
   --volumes-from=${CONTAINER} \
-  --mount type=bind,source=${BACKUP_FILE},target=/code/backup \
+  --mount type=bind,source=${PRUNE_FILE},target=/code/sp_prune_snapshots \
   --mount type=bind,source=${SITE_DIR}/restic_pass,target=/etc/secrets/restic_pass \
   --mount type=bind,source=${SITE_DIR}/b2_key,target=/etc/secrets/b2_key \
   --log-driver=syslog \
-  --log-opt tag=${SITE}_backup \
+  --log-opt tag=${SITE}_prune \
   --log-opt syslog-facility=local6 \
   ${CONTAINER_REGISTRY}/${CONTAINER} \
   ${COMMAND}
 
-rm ${BACKUP_FILE}
+# Cleanup script & dir
+rm ${PRUNE_FILE}
 rmdir ${TEMP_DIR}
+

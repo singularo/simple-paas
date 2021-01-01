@@ -22,19 +22,29 @@ backup() {
   sp_backup $*
 }
 
+list() {
+  shift
+  sp_list $*
+}
+
+prune() {
+  shift
+  sp_prune $*
+}
+
 shell() {
   shift
-  ss_shell $*
+  sp_shell $*
 }
 
 start() {
   shift
-  ss_start $*
+  sp_start $*
 }
 
 update() {
   shift
-  ss_update $*
+  sp_update $*
 }
 
 COMMAND=${1:-default}
@@ -45,6 +55,12 @@ case ${COMMAND} in
     ;;
   h*|-h|--help)
     usage
+    ;;
+  l*)
+    list $*
+    ;;
+  p*)
+    prune $*
     ;;
   sh*)
     shell $*
@@ -57,6 +73,7 @@ case ${COMMAND} in
     ;;
   *)
     usage
+    ;;
 esac
 
 
