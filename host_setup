@@ -66,6 +66,11 @@ cp ${CHECKOUT_DIR}/setup/90-simple-paas.cnf /etc/mysql/mariadb.conf.d/90-simple-
 systemctl daemon-reload
 systemctl restart mariadb
 
+echo "Adding simple-paas logging channel local6."
+cp ${CHECKOUT_DIR}/setup/60-simple-paas.conf /etc/rsyslog.d/
+systemctl daemon-reload
+systemctl restart rsyslog
+
 echo "Creating simple paas directory."
 mkdir -p /etc/simple-paas
 

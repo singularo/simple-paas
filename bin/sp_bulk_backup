@@ -1,8 +1,0 @@
-#!/bin/bash
-
-set -euo pipefail
-
-for i in $(docker ps --format "{{ .Names }}" | grep -v 'nginx-proxy')
-do
-  sp_backup $i
-done

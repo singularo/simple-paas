@@ -35,3 +35,11 @@ PRIVATE_DIR=/shared/private
 
 # BACKBLAZE B2 bucket.
 B2_BUCKET=server-name
+
+# Setup defaults for restic retention
+RESTIC_LAST=7
+RESTIC_HOURLY=24
+RESTIC_DAILY=7
+RESTIC_WEEKLY=5
+RESTIC_MONTHLY=12
+RESTIC_YEARLY=1
