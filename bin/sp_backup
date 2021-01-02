@@ -87,7 +87,7 @@ echo "# Processing backup for ${SITE}"
 # Dump the mysql database.
 echo "# Dumping database"
 vendor/bin/drush sql-dump \
-  --result-file=/shared/sql/${SITE}.sql 
+  --result-file=/shared/sql/${SITE}.sql \
   --quiet || echo "# ERROR - Drush sql dump failed"
 
 # Backup the files.
