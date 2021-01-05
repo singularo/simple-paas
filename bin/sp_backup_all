@@ -2,5 +2,5 @@
 
 for i in $(sp_list)
 do
-  sp_backup $i
+  timeout 5m sp_backup $i
 done

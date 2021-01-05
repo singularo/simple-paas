@@ -2,5 +2,5 @@
 
 for i in $(sp_list)
 do
-  sp_prune $i
+  timeout 20m sp_prune $i
 done
