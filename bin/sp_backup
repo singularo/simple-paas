@@ -82,15 +82,20 @@ if [ ! -f /shared/restic/CACHEDIR.TAG ]; then
   restic init || echo "# ERROR - Restic init failed"
 fi
 
+echo "# Processing backup for ${SITE}"
+
 # Dump the mysql database.
 echo "# Dumping database"
-vendor/bin/drush sql-dump --result-file=/shared/sql/${SITE}.sql || echo "# ERROR - Drush sql dump failed"
+vendor/bin/drush sql-dump \
+  --result-file=/shared/sql/${SITE}.sql \
+  --quiet || echo "# ERROR - Drush sql dump failed"
 
 # Backup the files.
 echo "# Backing up all data"
 restic backup /shared \
   --exclude=/shared/tmp \
-  --exclude=/shared/restic || echo "# ERROR - Restic backup failed"
+  --exclude=/shared/restic \
+  --quiet || echo "# ERROR - Restic backup failed"
 EOF
 
 chmod +x ${BACKUP_FILE}

@@ -83,6 +83,8 @@ if [ ! -f /shared/restic/CACHEDIR.TAG ]; then
   exit
 fi
 
+echo "# Processing snapshot prune for ${SITE}"
+
 # Process the forget/prune based on the settings.
 echo "# Running forget"
 restic forget \
