@@ -1,0 +1,57 @@
+#!/bin/bash
+#
+# Part of Simple paas
+#
+# Create a shell container with all the sites code, files and database available.
+#
+
+set -euo pipefail
+
+if [[ $# -eq 0 ]] ; then
+  echo "Please enter the iproject to backup."
+  exit 0
+fi
+
+# Load default configuration.
+CONFIG_DIR=/etc/simple-paas
+if [ ! -f ${CONFIG_DIR}/sp_config ]; then
+  echo "No default configuration in /etc/simple-paas!"
+  exit 1
+else
+  source ${CONFIG_DIR}/sp_config
+fi
+
+if [[ $# -eq 0 ]] ; then
+  echo "Please enter the name of the project to shell into."
+  echo "Usage:"
+  echo "$0 project"
+  exit 1
+fi
+
+SITE=$(basename ${1})
+
+CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}")
+
+if [[ "${CONTAINER}" != "${SITE}" ]]; then
+  echo "Container not found, cannot proceed."
+  exit 0
+fi
+
+CONFIG_FILE=${CONFIG_DIR}/sites/${SITE}
+
+# Die if no config for the site, load it otherwise.
+if [ ! -f ${CONFIG_FILE} ]; then
+  echo "Config file doesn't exist!"
+  exit 1
+else
+  source ${CONFIG_FILE}
+fi
+
+# Setup the expected image name.
+DEPLOY_IMAGE="${CONTAINER_REGISTRY}/${SITE}"
+
+# Let the user know how to exit.
+echo "Press Ctrl-C to exit log tailing."
+
+# Start logging the output of the container.
+docker logs -f ${CONTAINER}

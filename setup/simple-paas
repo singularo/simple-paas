@@ -1,0 +1,7 @@
+/var/lib/simple-paas.log {
+  rotate 7
+  daily
+  compress
+  missingok
+  copytruncate
+}
