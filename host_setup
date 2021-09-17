@@ -10,7 +10,7 @@ set -euo pipefail
 usage() {
   echo "This script will setup Simple paas on a single host."
   echo "example usage:"
-  echo "EMAIL=bob@test.com REGISTRY=registry.mydomain.com/internal BUCKET=myhosting ./simple-paas/host_setup"
+  echo "EMAIL=bob@test.com REGISTRY=registry.mydomain.com/internal BUCKET=myhosting STAGING_DOMAIN=wildcarded.domain.com ./simple-paas/host_setup"
   exit 1
 }
 
@@ -38,6 +38,14 @@ if [ -z "${BUCKET}" ]; then
   echo "BUCKET=myhosting"
   usage
 fi
+
+if [ -z "${STAGING_DOMAIN}" ]; then
+  echo "Please set the staging domain before running this script."
+  echo "This is a domain/subdomain setup with a wildcard DNS record."
+  echo "STAGING_DOMAIN=wildcarded.domain.com"
+  usage
+fi
+
 set -u
 
 CHECKOUT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
@@ -58,7 +66,7 @@ systemctl restart docker
 
 echo "Installing simple-paas."
 for i in ${CHECKOUT_DIR}/bin/*; do
-  ln -s $i /usr/local/bin/;
+  ln -sf $i /usr/local/bin/;
 done
 
 echo "Setting mysql to bind to all addresses."
@@ -72,7 +80,7 @@ systemctl daemon-reload
 systemctl restart rsyslog
 
 echo "Creating simple paas directory."
-mkdir -p /etc/simple-paas
+mkdir -p /etc/simple-paas/sites
 
 echo "Copying proxy config to simple paas directory."
 cp ${CHECKOUT_DIR}/setup/proxy.conf /etc/simple-paas/
@@ -82,6 +90,7 @@ cp ${CHECKOUT_DIR}/setup/sp_config.example /etc/simple-paas/sp_config
 sed -i -e 's%SYSTEM_EMAIL=.*%SYSTEM_EMAIL='"${EMAIL}"'%' /etc/simple-paas/sp_config
 sed -i -e 's@CONTAINER_REGISTRY=.*@CONTAINER_REGISTRY='"${REGISTRY}"'@' /etc/simple-paas/sp_config
 sed -i -e 's@B2_BUCKET=.*@B2_BUCKET='"${BUCKET}"'@' /etc/simple-paas/sp_config
+set -i -e 's@STAGING_DOMAIN=.*@STAGING_DOMAIN='"${STAGING_DOMAIN}"'@' /etc/simple-paas/sp_config
 
 echo "Logging into the specified container registry ${REGISTRY}"
 docker login ${REGISTRY}
@@ -91,9 +100,10 @@ echo "Logging into B2"
 if ! b2 get-account-info > /dev/null; then
   echo "Enter B2 authorization details for backup setup."
   b2 authorize-account
-  if ! b2 list-buckets | grep ${BUCKET}; then
-    b2 create-bucket ${BUCKET} allPrivate
-  fi
+fi
+
+if ! b2 list-buckets | grep ${BUCKET}; then
+  b2 create-bucket ${BUCKET} allPrivate
 fi
 
 echo "Starting nginx proxy containers."
