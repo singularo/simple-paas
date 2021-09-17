@@ -109,4 +109,7 @@ fi
 echo "Starting nginx proxy containers."
 ${CHECKOUT_DIR}/host_start_nginx
 
+echo "Adding automated backups"
+ln -sf /usr/local/bin/sp_backup_all /etc/cron.hourly/
+
 echo "Setup complete."
