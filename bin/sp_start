@@ -188,7 +188,7 @@ RESTIC_WEEKLY=4
 RESTIC_MONTHLY=3
 RESTIC_YEARLY=1
 EOF
-
+  touch ${CONFIG_FILE}.env
 fi
 
 # Finally, attempt to run the container.
@@ -211,6 +211,7 @@ docker run --restart=always --detach \
   -e SHEPHERD_REVERSE_PROXY=${SHEPHERD_REVERSE_PROXY} \
   -e SHEPHERD_REVERSE_PROXY_ADDRESSES=${SHEPHERD_REVERSE_PROXY_ADDRESSES} \
   -e VIRTUAL_HOST=${VIRTUAL_HOST} \
+  --env-file ${CONFIG_FILE}.env \
   --name ${SITE} \
   --mount type=bind,source=${DATA_DIR},target=/shared \
   --mount type=bind,source=${DATA_DIR}/public,target=/code/web/sites/default/files \
