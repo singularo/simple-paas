@@ -88,14 +88,14 @@ echo "# Processing backup for ${SITE}"
 echo "# Dumping database"
 vendor/bin/drush sql-dump \
   --result-file=/shared/sql/${SITE}.sql \
-  --quiet || echo "# ERROR - Drush sql dump failed"
+  || echo "# ERROR - Drush sql dump failed"
 
 # Backup the files.
 echo "# Backing up all data"
 restic backup /shared \
   --exclude=/shared/tmp \
   --exclude=/shared/restic \
-  --quiet || echo "# ERROR - Restic backup failed"
+  || echo "# ERROR - Restic backup failed"
 EOF
 
 chmod +x ${BACKUP_FILE}
