@@ -26,7 +26,7 @@ if [[ $# -eq 0 ]] ; then
 fi
 
 SITE=${1}
-CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}")
+CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}\$")
 
 if [[ "${CONTAINER}" != "${SITE}" ]]; then
   echo "Container not found, cannot proceed."
@@ -34,7 +34,8 @@ if [[ "${CONTAINER}" != "${SITE}" ]]; then
 fi
 
 if [ $# -ge 2 ]; then
-  COMMAND=${2}
+  shift
+  COMMAND=${@}
 else
   echo "Command not specified."
   exit 1
@@ -54,8 +55,12 @@ fi
 SITE_DIR="${SITES_ROOT}/${SITE}"
 DATA_DIR="${SITE_DIR}/data"
 
+# Setup user
+#USER_NAME=$(id -u ${SITE})
+USER_GROUP=$(id -g ${SITE})
+
 # Execute the script.
-docker run -it --rm \
+docker run -t --rm \
   -e BARE_DOMAIN=${BARE_DOMAIN} \
   -e DATABASE_NAME=${DATABASE_NAME} \
   -e DATABASE_USER=${DATABASE_USER} \
@@ -69,8 +74,10 @@ docker run -it --rm \
   -e MEMCACHE_PREFIX=${MEMCACHE_PREFIX} \
   -e PRIVATE_DIR=${PRIVATE_DIR} \
   -e VIRTUAL_HOST=${VIRTUAL_HOST} \
+  --env-file ${CONFIG_FILE}.env \
   --name ${SITE}_cron \
   --hostname ${SITE}_cron \
-  --volumes-from=${CONTAINER} \
+  --volumes-from ${CONTAINER} \
+  --user www-data:${USER_GROUP} \
   ${CONTAINER_REGISTRY}/${CONTAINER} \
   ${COMMAND}

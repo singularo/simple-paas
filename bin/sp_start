@@ -36,7 +36,7 @@ if [[ "${SITE}" != "${1}" ]]; then
   CONTAINER_REGISTRY=${CONTAINER_REGISTRY%"/"}
 fi
 
-CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}")
+CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}\$")
 
 # Ensure we are logged in to the registry.
 echo "Logging into the container registry."
@@ -111,6 +111,10 @@ fi
 # Setup data storage.
 SITE_DIR="${SITES_ROOT}/${SITE}"
 DATA_DIR="${SITE_DIR}/data"
+
+# Setup user
+#USER_NAME=$(id -u ${SITE})
+USER_GROUP=$(id -g ${SITE})
 
 # If this is a new site, create the database and storage config.
 if [ ${NEW_SITE} == 1 ]; then
@@ -188,7 +192,7 @@ RESTIC_WEEKLY=4
 RESTIC_MONTHLY=3
 RESTIC_YEARLY=1
 EOF
-
+  touch ${CONFIG_FILE}.env
 fi
 
 # Finally, attempt to run the container.
@@ -211,7 +215,9 @@ docker run --restart=always --detach \
   -e SHEPHERD_REVERSE_PROXY=${SHEPHERD_REVERSE_PROXY} \
   -e SHEPHERD_REVERSE_PROXY_ADDRESSES=${SHEPHERD_REVERSE_PROXY_ADDRESSES} \
   -e VIRTUAL_HOST=${VIRTUAL_HOST} \
+  --env-file ${CONFIG_FILE}.env \
   --name ${SITE} \
+  --user www-data:${USER_GROUP} \
   --mount type=bind,source=${DATA_DIR},target=/shared \
   --mount type=bind,source=${DATA_DIR}/public,target=/code/web/sites/default/files \
   --mount type=bind,source=${SITE_DIR}/db_pass,target=/etc/secrets/db_pass \

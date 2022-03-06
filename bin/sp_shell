@@ -30,7 +30,7 @@ fi
 
 SITE=$(basename ${1})
 
-CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}")
+CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}\$")
 
 if [[ "${CONTAINER}" != "${SITE}" ]]; then
   echo "Container not found, cannot proceed."
@@ -50,6 +50,8 @@ fi
 # Setup the expected image name.
 DEPLOY_IMAGE="${CONTAINER_REGISTRY}/${SITE}"
 
+shift
+
 # Attempt to run the container.
 docker run -it --rm \
   -e BARE_DOMAIN=${BARE_DOMAIN} \
@@ -65,7 +67,8 @@ docker run -it --rm \
   -e MEMCACHE_PREFIX=${MEMCACHE_PREFIX} \
   -e PRIVATE_DIR=${PRIVATE_DIR} \
   -e VIRTUAL_HOST=${VIRTUAL_HOST} \
+  --env-file ${CONFIG_FILE}.env \
   --name ${CONTAINER}_shell \
   --volumes-from=${CONTAINER} \
   ${DEPLOY_IMAGE} \
-  bash
+  "${@:-/bin/bash}"

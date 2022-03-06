@@ -35,7 +35,7 @@ if [ -t 1 ]; then
   INTERACTIVE="-it"
 fi
 
-CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}")
+CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}\$")
 
 if [[ "${CONTAINER}" != "${SITE}" ]]; then
   echo "Container not found, cannot proceed."
@@ -96,7 +96,7 @@ restic forget \
   --keep-monthly ${RESTIC_MONTHLY} \
   --keep-yearly ${RESTIC_YEARLY} \
   --keep-tag manual \
-  --quiet || echo "# ERROR - restic forget failed"
+  || echo "# ERROR - restic forget failed"
 
 echo "# Running prune"
 restic prune --quiet || echo "# ERROR - restic prune failed"
