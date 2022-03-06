@@ -35,7 +35,7 @@ if [ -t 1 ]; then
   INTERACTIVE="-it"
 fi
 
-CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}")
+CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}\$")
 
 if [[ "${CONTAINER}" != "${SITE}" ]]; then
   echo "Container not found, cannot proceed."
