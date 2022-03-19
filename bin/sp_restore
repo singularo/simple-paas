@@ -26,7 +26,8 @@ if [ "${SHEPHERD_ENVIRONMENT}" == "local" ]; then
   mkdir -p ${SECRETS_DIR}
   if [ ! -f ${SECRETS_DIR}/b2_key ]; then
     echo "Retrieving B2 key."
-    ssh ${REMOTE} "cat /sites/${PROJECT}/b2_key" > ${SECRETS_DIR}/b2_key
+    # shellcheck disable=SC2029
+    ssh "${REMOTE}" "cat /sites/${PROJECT}/b2_key" > ${SECRETS_DIR}/b2_key
   fi
   KEY=$(cat ${SECRETS_DIR}/b2_key)
   B2_ACCOUNT_ID=$(echo "${KEY}" | awk '{ print $1 }')
@@ -36,7 +37,8 @@ if [ "${SHEPHERD_ENVIRONMENT}" == "local" ]; then
 
   if [ ! -f ${SECRETS_DIR}/restic_pass ]; then
     echo "Retrieving Restic password."
-    ssh ${REMOTE} "cat /sites/${PROJECT}/restic_pass" > ${SECRETS_DIR}/restic_pass
+    # shellcheck disable=SC2029
+    ssh "${REMOTE}" "cat /sites/${PROJECT}/restic_pass" > ${SECRETS_DIR}/restic_pass
   fi
   RESTIC_PASSWORD=$(cat ${SECRETS_DIR}/restic_pass)
   export RESTIC_PASSWORD
@@ -53,6 +55,7 @@ if [ "${SHEPHERD_ENVIRONMENT}" == "local" ]; then
 
   echo "Fixing permissions for local dev."
   sudo chown www-data:www-data -R /shared
+  sudo chmod g+w -R /shared
 fi
 
 
@@ -66,23 +69,28 @@ if [ -z "${SNAPSHOT}" ]; then
   restic snapshots
 
   echo "Enter a specific snapshot, or edit the default and confirm with enter?"
+  # shellcheck disable=SC2162
   read -i latest -e -p 'Snapshot to restore?: ' SNAPSHOT
 fi
 set -u
 
 echo "Restoring snapshot ${SNAPSHOT}."
-restic restore --target / ${SNAPSHOT}
+restic restore --exclude /shared/config-sync/.htaccess --target / "${SNAPSHOT}"
 
 if [ "${SHEPHERD_ENVIRONMENT}" == "local" ]; then
   echo "Fixing permissions for local dev."
   sudo chown www-data:www-data -R /shared
+  sudo chmod g+w -R /shared
 fi
 
 echo "Usage after restore."
 du -msh /shared
 
 echo "Importing sql."
-robo dev:import-db /shared/sql/${PROJECT}.sql
+robo dev:import-db "/shared/sql/${PROJECT}".sql
+
+echo "Clearing cache"
+drush cache:rebuild
 
 if [ "${SHEPHERD_ENVIRONMENT}" == "local" ]; then
   # Put any local fixups here.
