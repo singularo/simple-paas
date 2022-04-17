@@ -29,8 +29,8 @@ if [[ $# -eq 0 ]] ; then
 fi
 
 SITE=$(basename ${1})
-
 CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}\$")
+IMAGE=$(docker ps --format "{{.Image}}" -f name="${SITE}\$")
 
 if [[ "${CONTAINER}" != "${SITE}" ]]; then
   echo "Container not found, cannot proceed."
@@ -51,10 +51,7 @@ fi
 echo "Logging into the container registry."
 docker login ${CONTAINER_REGISTRY}
 
-# Setup the expected image name.
-DEPLOY_IMAGE="${CONTAINER_REGISTRY}/${SITE}"
-
-docker pull ${DEPLOY_IMAGE}
+docker pull ${IMAGE}
 docker stop ${CONTAINER}
 docker rm ${CONTAINER}
-sp_start ${DEPLOY_IMAGE}
+sp_start ${IMAGE} ${SITE}

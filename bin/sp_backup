@@ -30,12 +30,13 @@ if [[ $# -eq 0 ]] ; then
 fi
 
 SITE=$(basename ${1})
+CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}\$")
+IMAGE=$(docker ps --format "{{.Image}}" -f name="${SITE}\$")
+
 INTERACTIVE=""
 if [ -t 1 ]; then
   INTERACTIVE="-it"
 fi
-
-CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}\$")
 
 if [[ "${CONTAINER}" != "${SITE}" ]]; then
   echo "Container not found, cannot proceed."
@@ -129,7 +130,7 @@ docker run ${INTERACTIVE} --rm \
   --log-driver=syslog \
   --log-opt tag=${SITE}_backup \
   --log-opt syslog-facility=local6 \
-  ${CONTAINER_REGISTRY}/${CONTAINER} \
+  ${IMAGE} \
   ${COMMAND}
 
 rm ${BACKUP_FILE}

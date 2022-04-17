@@ -29,8 +29,8 @@ if [[ $# -eq 0 ]] ; then
 fi
 
 SITE=$(basename ${1})
-
 CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}\$")
+IMAGE=$(docker ps --format "{{.Image}}" -f name="${SITE}\$")
 
 if [[ "${CONTAINER}" != "${SITE}" ]]; then
   echo "Container not found, cannot proceed."
@@ -46,9 +46,6 @@ if [ ! -f ${CONFIG_FILE} ]; then
 else
   source ${CONFIG_FILE}
 fi
-
-# Setup the expected image name.
-DEPLOY_IMAGE="${CONTAINER_REGISTRY}/${SITE}"
 
 shift
 
@@ -70,5 +67,5 @@ docker run -it --rm \
   --env-file ${CONFIG_FILE}.env \
   --name ${CONTAINER}_shell \
   --volumes-from=${CONTAINER} \
-  ${DEPLOY_IMAGE} \
+  ${IMAGE} \
   "${@:-/bin/bash}"

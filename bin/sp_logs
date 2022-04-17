@@ -29,7 +29,6 @@ if [[ $# -eq 0 ]] ; then
 fi
 
 SITE=$(basename ${1})
-
 CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}\$")
 
 if [[ "${CONTAINER}" != "${SITE}" ]]; then
@@ -46,9 +45,6 @@ if [ ! -f ${CONFIG_FILE} ]; then
 else
   source ${CONFIG_FILE}
 fi
-
-# Setup the expected image name.
-DEPLOY_IMAGE="${CONTAINER_REGISTRY}/${SITE}"
 
 # Let the user know how to exit.
 echo "Press Ctrl-C to exit log tailing."

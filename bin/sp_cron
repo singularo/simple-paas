@@ -27,6 +27,7 @@ fi
 
 SITE=${1}
 CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}\$")
+IMAGE=$(docker ps --format "{{.Image}}" -f name="${SITE}\$")
 
 if [[ "${CONTAINER}" != "${SITE}" ]]; then
   echo "Container not found, cannot proceed."
@@ -79,5 +80,5 @@ docker run -t --rm \
   --hostname ${SITE}_cron \
   --volumes-from ${CONTAINER} \
   --user www-data:${USER_GROUP} \
-  ${CONTAINER_REGISTRY}/${CONTAINER} \
+  ${IMAGE} \
   ${COMMAND}
