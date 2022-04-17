@@ -103,7 +103,7 @@ if [ ! -f ${CONFIG_FILE} ]; then
   fi
 
   # Provide access to the site via an alias as well as via the actual domain.
-  VIRTUAL_HOST=${SITE}.wsogmm.com,${LIVE_DOMAIN}
+  VIRTUAL_HOST=${SITE}.${STAGING_DOMAIN},${LIVE_DOMAIN}
 
   SHEPHERD_REVERSE_PROXY=1
 
