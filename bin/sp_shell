@@ -7,11 +7,6 @@
 
 set -euo pipefail
 
-if [[ $# -eq 0 ]] ; then
-  echo "Please enter the iproject to backup."
-  exit 0
-fi
-
 # Load default configuration.
 CONFIG_DIR=/etc/simple-paas
 if [ ! -f ${CONFIG_DIR}/sp_config ]; then
