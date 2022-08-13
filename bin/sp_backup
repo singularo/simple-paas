@@ -73,7 +73,7 @@ cat <<EOF > ${BACKUP_FILE}
 #
 # Backup script for Restic/BACKBLAZE B2
 #
-
+#
 # Retrieve the id/key from the file.
 export B2_ACCOUNT_ID=\$(cat /etc/secrets/b2_key | awk '{ print \$1 }')
 export B2_ACCOUNT_KEY=\$(cat /etc/secrets/b2_key | awk '{ print \$2 }')
@@ -86,10 +86,16 @@ fi
 echo "# Processing backup for ${SITE}"
 
 # Dump the mysql database.
-echo "# Dumping database"
-vendor/bin/drush sql-dump \
-  --result-file=/shared/sql/${SITE}.sql \
-  || echo "# ERROR - Drush sql dump failed"
+if [ -z "\${SQLITE_DATABASE}" ]; then
+  echo "# Dumping database with drush"
+  vendor/bin/drush sql-dump \
+    --result-file=/shared/sql/${SITE}.sql \
+    || echo "# ERROR - Drush sql dump failed"
+else
+  echo "# Dumping database with sqlite3"
+  sqlite3 "\${SQLITE_DATABASE}" ".backup /shared/backup.sq3" \
+    || echo "# ERROR - sqlite backup failed"
+fi
 
 # Backup the files.
 echo "# Backing up all data"
@@ -121,6 +127,7 @@ docker run ${INTERACTIVE} --rm \
   -e RESTIC_REPOSITORY="${RESTIC_REPOSITORY}:${SITE}" \
   -e RESTIC_PASSWORD_FILE=/etc/secrets/restic_pass \
   -e RESTIC_CACHE_DIR=/shared/restic \
+  --env-file ${CONFIG_FILE}.env \
   --name ${SITE}_backup \
   --hostname ${SITE}_backup \
   --volumes-from=${CONTAINER} \
