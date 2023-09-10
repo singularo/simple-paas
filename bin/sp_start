@@ -46,7 +46,7 @@ CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}\$")
 
 # Ensure we are logged in to the registry.
 echo "Logging into the container registry."
-docker login ${CONTAINER_REGISTRY}
+#docker login ${CONTAINER_REGISTRY}
 
 # Setup the expected image name.
 DEPLOY_IMAGE="${CONTAINER_REGISTRY}/${IMAGE}"
@@ -103,12 +103,14 @@ if [ ! -f ${CONFIG_FILE} ]; then
   fi
 
   # Provide access to the site via an alias as well as via the actual domain.
-  VIRTUAL_HOST=${SITE}.${STAGING_DOMAIN},${LIVE_DOMAIN}
+  VIRTUAL_HOST=${SITE}.wsogmm.com,${LIVE_DOMAIN}
 
   SHEPHERD_REVERSE_PROXY=1
 
   # Determine the reverse proxy address
-  SHEPHERD_REVERSE_PROXY_ADDRESSES=$(docker inspect nginx-proxy | jq -r '.[].NetworkSettings.IPAddress')
+  #SHEPHERD_REVERSE_PROXY_ADDRESSES=$(docker inspect nginx-proxy | jq -r '.[].NetworkSettings.IPAddress')
+  SHEPHERD_REVERSE_PROXY_TRUSTED=26
+  SHEPHERD_REVERSE_PROXY_ADDRESSES="172.17.0.0/16"
 else
   NEW_SITE=0
   source ${CONFIG_FILE}
@@ -191,6 +193,7 @@ RESTIC_REPOSITORY=b2:${B2_REPOSITORY}
 B2_KEY=/etc/secrets/b2_key
 
 SHEPHERD_REVERSE_PROXY=${SHEPHERD_REVERSE_PROXY}
+SHEPHERD_REVERSE_PROXY_TRUSTED=${SHEPHERD_REVERSE_PROXY_TRUSTED}
 SHEPHERD_REVERSE_PROXY_ADDRESSES=${SHEPHERD_REVERSE_PROXY_ADDRESSES}
 
 VIRTUAL_HOST=${VIRTUAL_HOST}
@@ -223,6 +226,7 @@ docker run --restart=always --detach \
   -e NEWRELIC_APP=${NEWRELIC_APP} \
   -e PRIVATE_DIR=${PRIVATE_DIR} \
   -e SHEPHERD_REVERSE_PROXY=${SHEPHERD_REVERSE_PROXY} \
+  -e SHEPHERD_REVERSE_PROXY_TRUSTED=${SHEPHERD_REVERSE_PROXY_TRUSTED} \
   -e SHEPHERD_REVERSE_PROXY_ADDRESSES=${SHEPHERD_REVERSE_PROXY_ADDRESSES} \
   -e VIRTUAL_HOST=${VIRTUAL_HOST} \
   --env-file ${CONFIG_FILE}.env \

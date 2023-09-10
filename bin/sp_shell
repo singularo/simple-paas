@@ -44,6 +44,8 @@ fi
 
 shift
 
+USER_GROUP=$(id -g ${SITE})
+
 # Attempt to run the container.
 docker run -it --rm \
   -e BARE_DOMAIN=${BARE_DOMAIN} \
@@ -57,10 +59,18 @@ docker run -it --rm \
   -e MEMCACHE_HOST=${MEMCACHE_HOST} \
   -e MEMCACHE_PORT=${MEMCACHE_PORT} \
   -e MEMCACHE_PREFIX=${MEMCACHE_PREFIX} \
+  -e NEWRELIC_ENABLED=${NEWRELIC_ENABLED} \
+  -e NEWRELIC_LICENSE=${NEWRELIC_LICENSE} \
+  -e NEWRELIC_APP=${NEWRELIC_APP} \
   -e PRIVATE_DIR=${PRIVATE_DIR} \
+  -e SHEPHERD_REVERSE_PROXY=${SHEPHERD_REVERSE_PROXY} \
+  -e SHEPHERD_REVERSE_PROXY_TRUSTED=${SHEPHERD_REVERSE_PROXY_TRUSTED} \
+  -e SHEPHERD_REVERSE_PROXY_ADDRESSES=${SHEPHERD_REVERSE_PROXY_ADDRESSES} \
   -e VIRTUAL_HOST=${VIRTUAL_HOST} \
   --env-file ${CONFIG_FILE}.env \
   --name ${CONTAINER}_shell \
+  --user www-data:${USER_GROUP} \
   --volumes-from=${CONTAINER} \
   ${IMAGE} \
   "${@:-/bin/bash}"
+
