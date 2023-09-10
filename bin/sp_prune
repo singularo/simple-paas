@@ -35,7 +35,8 @@ if [ -t 1 ]; then
   INTERACTIVE="-it"
 fi
 
-CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}")
+CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}\$")
+IMAGE=$(docker ps --format "{{.Image}}" -f name="${SITE}\$")
 
 if [[ "${CONTAINER}" != "${SITE}" ]]; then
   echo "Container not found, cannot proceed."
@@ -83,6 +84,9 @@ if [ ! -f /shared/restic/CACHEDIR.TAG ]; then
   exit
 fi
 
+echo "# Unlocking repository"
+restic unlock
+
 echo "# Processing snapshot prune for ${SITE}"
 
 # Process the forget/prune based on the settings.
@@ -96,13 +100,13 @@ restic forget \
   --keep-monthly ${RESTIC_MONTHLY} \
   --keep-yearly ${RESTIC_YEARLY} \
   --keep-tag manual \
-  --quiet || echo "# ERROR - restic forget failed"
+  || echo "# ERROR - restic forget failed"
 
 echo "# Running prune"
-restic prune --quiet || echo "# ERROR - restic prune failed"
+restic prune || echo "# ERROR - restic prune failed"
 
 echo "# Running check"
-restic check --quiet || echo "# ERROR - restic check failed"
+restic check || echo "# ERROR - restic check failed"
 
 EOF
 
@@ -137,7 +141,7 @@ docker run ${INTERACTIVE} --rm \
   --log-driver=syslog \
   --log-opt tag=${SITE}_prune \
   --log-opt syslog-facility=local6 \
-  ${CONTAINER_REGISTRY}/${CONTAINER} \
+  ${IMAGE} \
   ${COMMAND}
 
 # Cleanup script & dir

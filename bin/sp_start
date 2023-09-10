@@ -28,22 +28,28 @@ if [[ $# -eq 0 ]]; then
   exit 1
 fi
 
-SITE=$(basename ${1})
+if [ ! -z "$2" ]; then
+  SITE="$2"
+  IMAGE=$(basename ${1})
+else
+  SITE=$(basename ${1})
+  IMAGE=$(basename ${1})
+fi
 
 # If a full site path was passed in, we need to extract the registry.
 if [[ "${SITE}" != "${1}" ]]; then
-  CONTAINER_REGISTRY=${1/${SITE}/}
+  CONTAINER_REGISTRY=${1/${IMAGE}/}
   CONTAINER_REGISTRY=${CONTAINER_REGISTRY%"/"}
 fi
 
-CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}")
+CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}\$")
 
 # Ensure we are logged in to the registry.
 echo "Logging into the container registry."
-docker login ${CONTAINER_REGISTRY}
+#docker login ${CONTAINER_REGISTRY}
 
 # Setup the expected image name.
-DEPLOY_IMAGE="${CONTAINER_REGISTRY}/${SITE}"
+DEPLOY_IMAGE="${CONTAINER_REGISTRY}/${IMAGE}"
 
 # Check it exists.
 if [[ "$(docker images -q ${DEPLOY_IMAGE} 2> /dev/null | head -1)" == "" ]]; then
@@ -102,7 +108,9 @@ if [ ! -f ${CONFIG_FILE} ]; then
   SHEPHERD_REVERSE_PROXY=1
 
   # Determine the reverse proxy address
-  SHEPHERD_REVERSE_PROXY_ADDRESSES=$(docker inspect nginx-proxy | jq -r '.[].NetworkSettings.IPAddress')
+  #SHEPHERD_REVERSE_PROXY_ADDRESSES=$(docker inspect nginx-proxy | jq -r '.[].NetworkSettings.IPAddress')
+  SHEPHERD_REVERSE_PROXY_TRUSTED=26
+  SHEPHERD_REVERSE_PROXY_ADDRESSES="172.17.0.0/16"
 else
   NEW_SITE=0
   source ${CONFIG_FILE}
@@ -111,6 +119,17 @@ fi
 # Setup data storage.
 SITE_DIR="${SITES_ROOT}/${SITE}"
 DATA_DIR="${SITE_DIR}/data"
+
+# If the user doesn't exist, create them.
+set +e
+if ! id -u ${SITE}; then
+  useradd -m ${SITE}
+fi
+set -e
+
+# Setup user
+#USER_NAME=$(id -u ${SITE})
+USER_GROUP=$(id -g ${SITE})
 
 # If this is a new site, create the database and storage config.
 if [ ${NEW_SITE} == 1 ]; then
@@ -121,9 +140,6 @@ if [ ${NEW_SITE} == 1 ]; then
   mkdir -p ${DATA_DIR}/{public,private,sql,restic,tmp}
   chown ${USER}:${USER} -R ${SITE_DIR}
   echo -n ${DATABASE_PASS} > ${SITE_DIR}/db_pass
-  set +e
-  useradd -m ${SITE}
-  set -e
   chmod 770 -R ${DATA_DIR}
   chown www-data:${SITE} -R ${DATA_DIR}
 
@@ -177,6 +193,7 @@ RESTIC_REPOSITORY=b2:${B2_REPOSITORY}
 B2_KEY=/etc/secrets/b2_key
 
 SHEPHERD_REVERSE_PROXY=${SHEPHERD_REVERSE_PROXY}
+SHEPHERD_REVERSE_PROXY_TRUSTED=${SHEPHERD_REVERSE_PROXY_TRUSTED}
 SHEPHERD_REVERSE_PROXY_ADDRESSES=${SHEPHERD_REVERSE_PROXY_ADDRESSES}
 
 VIRTUAL_HOST=${VIRTUAL_HOST}
@@ -188,7 +205,7 @@ RESTIC_WEEKLY=4
 RESTIC_MONTHLY=3
 RESTIC_YEARLY=1
 EOF
-
+  touch ${CONFIG_FILE}.env
 fi
 
 # Finally, attempt to run the container.
@@ -209,9 +226,12 @@ docker run --restart=always --detach \
   -e NEWRELIC_APP=${NEWRELIC_APP} \
   -e PRIVATE_DIR=${PRIVATE_DIR} \
   -e SHEPHERD_REVERSE_PROXY=${SHEPHERD_REVERSE_PROXY} \
+  -e SHEPHERD_REVERSE_PROXY_TRUSTED=${SHEPHERD_REVERSE_PROXY_TRUSTED} \
   -e SHEPHERD_REVERSE_PROXY_ADDRESSES=${SHEPHERD_REVERSE_PROXY_ADDRESSES} \
   -e VIRTUAL_HOST=${VIRTUAL_HOST} \
+  --env-file ${CONFIG_FILE}.env \
   --name ${SITE} \
+  --user www-data:${USER_GROUP} \
   --mount type=bind,source=${DATA_DIR},target=/shared \
   --mount type=bind,source=${DATA_DIR}/public,target=/code/web/sites/default/files \
   --mount type=bind,source=${SITE_DIR}/db_pass,target=/etc/secrets/db_pass \

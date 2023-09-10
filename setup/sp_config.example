@@ -12,6 +12,9 @@ CONFIG_DIR=/etc/simple-paas
 # System email for notifications.
 SYSTEM_EMAIL=email@test.com
 
+# Staging domain for access before sites are live.
+STAGING_DOMAIN=
+
 # Container registry to pull from
 CONTAINER_REGISTRY=registry.mydomain.com/internal
 

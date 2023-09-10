@@ -27,6 +27,11 @@ list() {
   sp_list $*
 }
 
+logs() {
+  shift
+  sp_logs $*
+}
+
 prune() {
   shift
   sp_prune $*
@@ -56,8 +61,11 @@ case ${COMMAND} in
   h*|-h|--help)
     usage
     ;;
-  l*)
+  li*)
     list $*
+    ;;
+  lo*)
+    logs $*
     ;;
   p*)
     prune $*

@@ -2,27 +2,27 @@
 #
 # Part of Simple paas
 #
-# Update a project
+# Create a shell container with all the sites code, files and database available.
 #
 
 set -euo pipefail
 
-if [[ $EUID -ne 0 ]]; then
-  echo "This script must be run as root"
-  exit 1
+if [[ $# -eq 0 ]] ; then
+  echo "Please enter the iproject to backup."
+  exit 0
 fi
 
 # Load default configuration.
 CONFIG_DIR=/etc/simple-paas
 if [ ! -f ${CONFIG_DIR}/sp_config ]; then
-  echo "No default configuration in ${CONFIG_DIR}!"
+  echo "No default configuration in /etc/simple-paas!"
   exit 1
 else
   source ${CONFIG_DIR}/sp_config
 fi
 
 if [[ $# -eq 0 ]] ; then
-  echo "Please enter the name of the project to update."
+  echo "Please enter the name of the project to shell into."
   echo "Usage:"
   echo "$0 project"
   exit 1
@@ -30,11 +30,10 @@ fi
 
 SITE=$(basename ${1})
 CONTAINER=$(docker ps --format "{{.Names}}" -f name="${SITE}\$")
-IMAGE=$(docker ps --format "{{.Image}}" -f name="${SITE}\$")
 
 if [[ "${CONTAINER}" != "${SITE}" ]]; then
   echo "Container not found, cannot proceed."
-  exit 1
+  exit 0
 fi
 
 CONFIG_FILE=${CONFIG_DIR}/sites/${SITE}
@@ -47,11 +46,8 @@ else
   source ${CONFIG_FILE}
 fi
 
-# Ensure we are logged in to the registry.
-echo "Logging into the container registry."
-docker login ${CONTAINER_REGISTRY}
+# Let the user know how to exit.
+echo "Press Ctrl-C to exit log tailing."
 
-docker pull ${IMAGE}
-docker stop ${CONTAINER}
-docker rm ${CONTAINER}
-sp_start ${IMAGE} ${SITE}
+# Start logging the output of the container.
+docker logs -f ${CONTAINER}
